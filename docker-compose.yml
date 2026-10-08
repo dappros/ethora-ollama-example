@@ -1,0 +1,44 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ethora-ollama
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  pgvector:
+    image: pgvector/pgvector:pg17
+    container_name: ethora-pgvector
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ai_service_embeddings_db
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgvector-data:/var/lib/postgresql/data
+      - ./db/001_documents.sql:/docker-entrypoint-initdb.d/001_documents.sql:ro
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - ollama pull ${AI_CHAT_MODEL:-qwen2.5:3b-instruct} && ollama pull ${AI_EMBEDDING_MODEL:-nomic-embed-text}
+    restart: "no"
+
+volumes:
+  ollama-models:
+  pgvector-data:
